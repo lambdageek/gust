@@ -1,0 +1,24 @@
+name:                gust
+version:             0.0.0
+synopsis:            Small language with Pierce/Turner type inference
+homepage:            http://github.com/lambdageek/gust
+license:             BSD3
+author:              Aleksey Kliger
+maintainer:          aleksey.kliger@baesystems.com
+copyright:           Copyright (c) 2014, Aleksey Kliger
+
+category:            Language
+
+build-type:          Simple
+cabal-version:       >=1.8
+
+
+library
+  hs-source-dirs:    src
+  -- exposed-modules:     
+  
+  -- other-modules:       
+  
+  -- Other library packages from which modules are imported.
+  build-depends:     base ==4.6.*
+  
