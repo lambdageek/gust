@@ -19,12 +19,15 @@ library
                      Gust.AST
                    , Gust.Located
                    , Gust.Parse
+                   , Gust.Kind
+                   , Gust.Type
   -- other-modules:       
   
   -- Other library packages from which modules are imported.
   build-depends:     base >= 4.6 && < 5
                    , lens
                    , unbound
+                   , RepLib
                    , transformers >= 0.3
                    , parsec >= 3.1.3
 

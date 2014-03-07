@@ -17,6 +17,8 @@ import Data.Foldable (Foldable)
 import Data.Typeable (Typeable, Typeable1)
 import qualified Data.Typeable as T
 
+import Gust.Kind
+
 data Meta f a =
   (:@:) {
     _mValue :: !(f a)
@@ -53,10 +55,6 @@ instance Ord Var where
   (GenV _ i1) `compare` (GenV _ i2) = i1 `compare` i2
   (UserV _  ) `compare` (GenV _  _) = LT
   (GenV  _ _) `compare` (UserV _  ) = GT
-
-
-data Kind = KTy
-          deriving (Eq, Ord, Show, Data, Typeable)
 
 -- | syntactic types
 data SType' a =

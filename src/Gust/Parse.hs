@@ -8,6 +8,7 @@ import Text.Parsec.Language (haskellStyle)
 import qualified Text.Parsec.Token as Tok
 
 import Gust.AST
+import Gust.Kind
 import Gust.Located
 
 type Parser = Parsec String ()
