@@ -1,6 +1,7 @@
 {-#
   LANGUAGE
-    FlexibleInstances
+    DeriveDataTypeable
+  , FlexibleInstances
   , FlexibleContexts
   , TemplateHaskell
   , MultiParamTypeClasses
@@ -45,3 +46,6 @@ instance U.Subst Type Type where
 instance U.Subst Type ArrowType
 
 instance U.Subst Type Kind
+
+instance Eq Type where
+  (==) = U.aeq
