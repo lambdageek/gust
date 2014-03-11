@@ -23,7 +23,7 @@ library
                    , Gust.Type
                    , Gust.Typed
                    , Gust.ElabType
-  -- other-modules:       
+  other-modules:     Data.Order
   
   -- Other library packages from which modules are imported.
   build-depends:     base >= 4.6 && < 5

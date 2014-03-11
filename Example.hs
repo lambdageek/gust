@@ -6,6 +6,7 @@ module Example where
 
 import Control.Applicative
 import Control.Lens
+import Control.Monad.Reader
 
 import Data.Monoid
 
@@ -13,10 +14,11 @@ import Text.Parsec (parse, ParseError, eof)
 import Gust.Parse (SourceCode(..))
 import Gust.AST as S
 import Gust.Typed
+import Gust.Type
 import Gust.Located
 import Gust.ElabType
 
-import Control.Monad.Reader
+import Data.Order
 
 data ExampleError =
   ExParseE ParseError -- ^ parser error
@@ -30,4 +32,19 @@ r s = case parse (parser <* eof) "___" s of
   Left err -> Left (ExParseE err)
   Right t -> over _Left ExElabE $ runReaderT (elabTy t) (mempty ^. tyEnv)
 
-test1 = over _Right (view ty) $ r "forall a, b . (a) -> b"
+rr :: String -> Type
+rr s = let
+  Right ans = over _Right (view ty) $ r s
+  in ans
+
+test1 = rr "forall a, b . (a) -> b"
+
+test2 = rr "forall a, b . (a, a) -> b"
+
+test3 = rr "forall a, b . (box (a, a)) -> b"
+
+test4 = rr "forall a, b . (box (a, a, a)) -> b"
+
+testCmp34 = test3 <=: test4
+
+testMt34 = test3 /\? test4

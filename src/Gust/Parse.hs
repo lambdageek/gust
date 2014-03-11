@@ -32,6 +32,8 @@ instance SourceCode SType' where
     ((tupleOrFun
       <$> atomicType
       <*> optionMaybe (arrow *> parser))
+     <|> (BoxST
+          <$> (box *> parser))
      <|> (AppST
           <$> identifier
           <*> parens (commaSep parser))
@@ -150,12 +152,12 @@ gustDef = haskellStyle {
      -- statements
      , "var"
      -- types
-     , "forall"
+     , "forall", "box"
      -- kinds
      , "T"
      ]
   , Tok.reservedOpNames = [
-     "->", "→", "∀"
+     "->", "→", "∀", "̱□"
      ]
   }
 
@@ -188,6 +190,9 @@ arrow = Tok.reservedOp tok "->" <|> Tok.reservedOp tok "→"
 
 forall :: Parser ()
 forall = kw "forall" <|> Tok.reservedOp tok "∀"
+
+box :: Parser ()
+box = kw "box" <|> Tok.reservedOp tok "□"
 
 identifier :: Parser String
 identifier = Tok.identifier tok

@@ -12,8 +12,6 @@ import Control.Lens
 
 import qualified Data.Map as Map
 
-import qualified Unbound.LocallyNameless as U
-
 import qualified Gust.AST as S
 
 import qualified Gust.Type as T
@@ -40,22 +38,24 @@ elabTy :: MonadElabTy m => S.SType c -> m (S.SType (Typed c))
 elabTy = elab $ \t -> case t of
   S.TupleST ts -> do
     ts' <- traverse elabTy ts
-    T.TupleT (ts' ^..folded.ty) -:- S.TupleST ts'
+    T.tupleT (ts' ^..folded.ty) -:- S.TupleST ts'
+  S.BoxST t1 -> do
+    t1' <- elabTy t1
+    T.boxT (t1'^.ty)            -:- S.BoxST t1'
   S.AppST tv tys -> do
     mtb <- view $ from tyEnv . at tv
     case mtb of
       Nothing -> throwError $ "unbound type variable " ++ show tv
-      Just (AbsTB ks _kout) | null ks && null tys ->
-        T.VarT (U.s2n tv)  -:- S.AppST tv []
+      Just (AbsTB ks kout) | null ks && null tys ->
+        T.varT tv kout          -:- S.AppST tv []
                             | otherwise ->
         bug "expected nullary tyvar applied to zero arguments"
   S.FunST tvks doms cod -> do
     let newBs = Map.fromList $ map (\(v,k) -> (v, AbsTB [] k)) tvks
     (doms', cod') <- local (from tyEnv %~ Map.union newBs) $ do
       (,) <$> traverse elabTy doms <*> elabTy cod
-    T.FunT (U.bind (map (\(v,k) -> (U.s2n v, k)) tvks)
-            $ T.ArrowType (doms'^..folded.ty) (cod'^.ty))
-                           -:- S.FunST tvks doms' cod'
+    T.funT tvks (doms'^..folded.ty) (cod'^.ty)
+                                -:- S.FunST tvks doms' cod'
 
 bug :: MonadError String m => String -> m a
 bug = throwError
