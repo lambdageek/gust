@@ -29,14 +29,14 @@ hereIs cmd = do
 instance SourceCode SType' where
   parser =
     hereIs
-    ((tupleOrFun
-      <$> atomicType
-      <*> optionMaybe (arrow *> parser))
-     <|> (BoxST
+    ((BoxST
           <$> (box *> parser))
-     <|> (AppST
-          <$> identifier
-          <*> parens (commaSep parser))
+     <|> try (AppST
+              <$> identifier
+              <*> parens (commaSep parser))
+     <|> (tupleOrFun
+          <$> atomicType
+          <*> optionMaybe (arrow *> parser))
      <|> (FunST
           <$> option [] (forall *> (typeBindings <* dot))
           <*> parens (commaSep parser)
@@ -65,8 +65,12 @@ instance SourceCode Decl' where
        <?> "declaration")
 
 parseAbstype :: Parser (Decl' (Located ()))
-parseAbstype = AbstypeD <$> identifier <*> parseKind
+parseAbstype = AbstypeD <$> identifier <*> (colon *> parseTyBind)
   
+parseTyBind :: Parser TyBind
+parseTyBind = AbsTB 
+              <$> (option [] $ angles (commaSep parseKind))
+              <*> parseKind
 
 instance SourceCode Expr' where
   parser =
@@ -114,7 +118,7 @@ parseKind = parens parseKind
 typeBindings :: Parser [TypeBinding]
 typeBindings = commaSep ((,)
                          <$> identifier
-                         <*> option KTy (colon *> parseKind))
+                         <*> option (AbsTB [] KTy) (colon *> parseTyBind))
                <?> "type variable binding(s)"
 
 termBindings :: Parser [TermBinding (Located ())]

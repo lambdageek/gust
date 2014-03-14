@@ -25,19 +25,18 @@ data ExampleError =
   | ExElabE String -- ^ elaboration error
     deriving Show
 
-instance MonadElabTy (ReaderT TyEnv (Either String)) where
 
 r :: String -> Either ExampleError (S.SType (Typed (Located ())))
 r s = case parse (parser <* eof) "___" s of
   Left err -> Left (ExParseE err)
-  Right t -> over _Left ExElabE $ runReaderT (elabTy t) (mempty ^. tyEnv)
+  Right t -> over _Left ExElabE $ runReaderT (elabTy t) (mempty ^. typeEnv)
 
 rr :: String -> Type
 rr s = let
   Right ans = over _Right (view ty) $ r s
   in ans
 
-test1 = rr "forall a, b . (a) -> b"
+test1 = rr "forall a : <T,T>T, b . (a (b,b)) -> b"
 
 test2 = rr "forall a, b . (a, a) -> b"
 

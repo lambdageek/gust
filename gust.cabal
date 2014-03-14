@@ -23,6 +23,7 @@ library
                    , Gust.Type
                    , Gust.Typed
                    , Gust.ElabType
+                   , Gust.Check
   other-modules:     Data.Order
   
   -- Other library packages from which modules are imported.

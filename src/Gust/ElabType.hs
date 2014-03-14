@@ -1,7 +1,9 @@
 {-#
   LANGUAGE
     FlexibleContexts
+  , ConstraintKinds
   , TemplateHaskell
+  , RankNTypes
   #-}
 module Gust.ElabType where
 
@@ -12,29 +14,38 @@ import Control.Lens
 
 import qualified Data.Map as Map
 
+import Data.Order
+
 import qualified Gust.AST as S
 
 import qualified Gust.Type as T
 import Gust.Typed
 import Gust.Kind
 
-newtype TyEnv = TyEnv (Map.Map S.Name TyBind)
+newtype TypeEnv = TypeEnv (Map.Map S.Name TyBind)
 
-data TyBind =
-  AbsTB [Kind] Kind 
+makeIso ''TypeEnv
 
-makeIso ''TyEnv
+class HasTyEnv e where
+  tyEnv :: Lens' e TypeEnv
+
+instance HasTyEnv TypeEnv where
+  tyEnv = id
+
+extendTypeEnv :: HasTyEnv e => [(S.Name, TyBind)] -> e -> e
+extendTypeEnv xs = tyEnv . from typeEnv %~ Map.union (Map.fromList xs)
 
 elab :: Functor f => (syn c -> f (T.Type, syn (Typed c))) -> S.Meta syn c -> f (S.Meta syn (Typed c))
 elab f (a S.:@: m) =
   (\(t, a') -> a' S.:@: (m :-: t)) <$> f a
 
-class (Applicative m, MonadReader TyEnv m, MonadError String m) => MonadElabTy m where
+type MonadElabTy r m = (Applicative m, HasTyEnv r , MonadReader r m,
+                        MonadError String m)
      
 (-:-) :: Monad m => t -> a -> m (t, a)
 t -:- x = return $ (t, x)
 
-elabTy :: MonadElabTy m => S.SType c -> m (S.SType (Typed c))
+elabTy :: MonadElabTy r m => S.SType c -> m (S.SType (Typed c))
 elabTy = elab $ \t -> case t of
   S.TupleST ts -> do
     ts' <- traverse elabTy ts
@@ -43,19 +54,31 @@ elabTy = elab $ \t -> case t of
     t1' <- elabTy t1
     T.boxT (t1'^.ty)            -:- S.BoxST t1'
   S.AppST tv tys -> do
-    mtb <- view $ from tyEnv . at tv
+    mtb <- view $ tyEnv . from typeEnv . at tv
     case mtb of
       Nothing -> throwError $ "unbound type variable " ++ show tv
-      Just (AbsTB ks kout) | null ks && null tys ->
-        T.varT tv kout          -:- S.AppST tv []
-                            | otherwise ->
-        bug "expected nullary tyvar applied to zero arguments"
+      Just (AbsTB ks kout) -> do
+        tys' <- traverse elabTy tys
+        assertElab (length ks == length tys) ("type " ++ show tv
+                                              ++ " applied to "
+                                              ++ show (length ks)
+                                              ++ " arguments, but got "
+                                              ++ show (length tys))
+        mapM_ (\(arg, k) ->
+                assertElab (arg^.ty.T.tyKnd <=: k)
+                (" expected " ++ show arg ++ " to have kind " ++ show k))
+          (zip tys' ks)
+        T.varT tv kout          -:- S.AppST tv tys'
   S.FunST tvks doms cod -> do
-    let newBs = Map.fromList $ map (\(v,k) -> (v, AbsTB [] k)) tvks
-    (doms', cod') <- local (from tyEnv %~ Map.union newBs) $ do
+    (doms', cod') <- local (extendTypeEnv tvks) $ do
       (,) <$> traverse elabTy doms <*> elabTy cod
     T.funT tvks (doms'^..folded.ty) (cod'^.ty)
                                 -:- S.FunST tvks doms' cod'
 
 bug :: MonadError String m => String -> m a
 bug = throwError
+
+assertElab :: MonadError String m => Bool -> String -> m ()
+assertElab cond msg =
+  if cond then return ()
+  else throwError $ "ElaborationError: " ++ msg

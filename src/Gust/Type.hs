@@ -33,7 +33,7 @@ data Type' =
   | BotT
   | BoxT !Type
   | TupleT ![Type]
-  | FunT (U.Bind [(TyName, Kind)] ArrowType)
+  | FunT (U.Bind [(TyName, TyBind)] ArrowType)
     deriving (Show)
 
 data ArrowType =
@@ -68,8 +68,10 @@ instance U.Subst Type Type' where
 instance U.Subst Type ArrowType
 
 instance U.Subst Type Kind
+instance U.Subst Type TyBind
 
 instance U.Subst Type Type
+
 
 instance Eq Type where
   (==) = U.aeq
@@ -89,14 +91,14 @@ varT s k = Type {
   , _tyKnd = k
   }
 
-funT' :: [(TyName, Kind)] -> ArrowType -> Type
+funT' :: [(TyName, TyBind)] -> ArrowType -> Type
 funT' bound arr = let
   in Type {
     _tyRep = FunT (U.bind bound arr)
     , _tyKnd = KTy
     }
 
-funT :: [(S.Name, Kind)] -> [Type] -> Type -> Type
+funT :: [(S.Name, TyBind)] -> [Type] -> Type -> Type
 funT tvks doms cod = let
   bound = map (first U.s2n) tvks
   in funT' bound $ ArrowType doms cod
@@ -158,7 +160,7 @@ depthMeet t1 t2 = (t1^.tyRep) ⋏? (t2^.tyRep)
       U.lunbind2 bnd1 bnd2 $ \r ->
       case r of
         Nothing -> return Nothing
-        Just (vks1, arr1, vks2, arr2) ->
+        Just (vks1, arr1, _vks2, arr2) ->
           liftM (liftM (funT' vks1)) $ depthMeetArr arr1 arr2
 
     _ ⋏? _ = do
@@ -178,7 +180,7 @@ depthJoin t1 t2 = (t1^.tyRep) ⋎? (t2^.tyRep)
       U.lunbind2 bnd1 bnd2 $ \r ->
       case r of
         Nothing -> return Nothing
-        Just (vks1, arr1, vks2, arr2) ->
+        Just (vks1, arr1, _vks2, arr2) ->
           liftM (liftM (funT' vks1)) $ depthJoinArr arr1 arr2
     _ ⋎? _ = do
       sb2 <- depthSubtype t1 t2
