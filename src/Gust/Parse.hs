@@ -13,6 +13,9 @@ import Gust.Located
 
 type Parser = Parsec String ()
 
+parseProgram :: Parser (Program (Located ()))
+parseProgram = many1 parser <* eof
+
 class SourceCode t where
   parser :: Parser (Meta t (Located ()))
 

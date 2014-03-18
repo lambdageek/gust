@@ -1,0 +1,9 @@
+abstype Int : T
+
+fun f (x:Int, g : (Int, Int) -> Int) : Int = g (x,x)
+
+fun h<a:T> (x:Int, g : (Int, a) -> Int, z : a) :Int = g (x, z)
+
+fun j (x:Int, u : (Int, Int) -> Int) : Int = f (x, u)
+
+fun k<b:T> (x: Int, g : (Int, b) -> Int, z : b) : Int = h<b> (x, g, z)

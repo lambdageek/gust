@@ -34,4 +34,4 @@ instance HasTy c => HasTy (Meta t c) where
 
 instance HasTy c => HasTy (a, c) where
   ty = _2 . ty
-
+  

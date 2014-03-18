@@ -10,19 +10,21 @@ module Gust.Check where
 import Prelude hiding (sequence, mapM)
 
 import Control.Applicative
-import Control.Arrow (first, second)
+import Control.Arrow (second)
 import Control.Lens
 import Control.Monad.Error hiding (sequence, mapM)
 import Control.Monad.Reader hiding (sequence, mapM)
 import Data.Monoid
 import qualified Data.Map as Map
-import Data.Traversable
+
+import qualified Unbound.LocallyNameless as U
 
 import Data.Order
 
 import Gust.AST
 import Gust.Type
 import Gust.Typed
+import Gust.Kind
 
 import Gust.ElabType
 
@@ -37,6 +39,12 @@ data ElabEnv =
     , _eeTmEnv :: TermEnv
     }
 
+emptyElabEnv :: ElabEnv
+emptyElabEnv = ElabEnv {
+  _eeTyEnv = mempty ^. typeEnv
+  , _eeTmEnv = mempty ^. from termEnvMapping
+  }
+               
 makeLenses ''ElabEnv
 
 instance HasTyEnv ElabEnv where
@@ -48,7 +56,7 @@ extendTermEnv xs = eeTmEnv.termEnvMapping %~ mappend (Map.fromList xs)
 
 type MonadElaborate m =
   (Applicative m, MonadReader ElabEnv m
-  , MonadError String m)
+  , MonadError String m, U.Fresh m)
 
 elabVar :: MonadElaborate m
            => Maybe Type
@@ -69,9 +77,110 @@ elabExpr :: MonadElaborate m
            -> m (Expr (Typed a))
 elabExpr meTy = elab $ \e -> case e of
   VarE v -> do
-    (v, ty) <- elabVar meTy v
-    ty                                  -:- VarE v
-  _ -> undefined
+    (v', t') <- elabVar meTy v
+    t'                                  -:- VarE v'
+  BlockE stmts e1 ->
+    elabStmts stmts $ \stmts' -> do
+      e1' <- elabExpr meTy e1
+      (e1'^.ty)                         -:- BlockE stmts' e1'
+  AscribeE e1 t1 -> do
+    t1' <- elabTy t1
+    e1' <- elabExpr (Just $ t1'^.ty) e1
+    assertTypeRel (<=:) (e1'^.ty) "a subtype of ascribed type " (t1'^.ty)
+    (t1'^.ty)                           -:- AscribeE e1' t1'
+  ApplyE efun tyargs eargs -> do
+    efun' <- elabExpr Nothing efun
+    (bvs, arr) <- expectPolyFunType (efun'^.ty)
+    if null bvs
+      then do
+      when (not $ null tyargs) $ do
+        typeError efun' (" applied to " ++ show (length tyargs) ++ " types, expected none")
+      elabMonoApp meTy efun' arr eargs
+      else elabPolyApp meTy efun' bvs arr tyargs eargs
+  _ -> unimplemented $ show e
+
+expectPolyFunType :: MonadElaborate m
+                     => Type
+                     -> m ([(TyName, TyBind)], ArrowType)
+expectPolyFunType t =
+  case t^.tyRep of
+    FunT bnd -> U.unbind bnd
+    _ -> typeError t " not a polymorphic function type"
+      
+
+elabMonoApp :: MonadElaborate m
+               => Maybe Type
+               -> Expr (Typed a)
+               -> ArrowType
+               -> [Expr a]
+               -> m (Type, Expr' (Typed a))
+elabMonoApp meTy efun' arr eargs = do
+  unless (length (arrDom arr) == length eargs) $ do
+    typeError eargs (" expected exactly "
+                     ++ show (length $ arrDom arr) ++ " arguments")
+  eargs' <- zipWithM (\argTy earg -> elabExpr (Just argTy) earg)
+            (arrDom arr) eargs
+  let
+    e' = ApplyE efun' [] eargs'
+    t' = arrCod arr
+  guardExpectedResult meTy e' t'
+  t'                                    -:- e'
+
+guardExpectedResult :: MonadElaborate m
+                       => Maybe Type
+                       -> Expr' (Typed a)
+                       -> Type
+                       -> m ()
+guardExpectedResult meTy e t =
+  case meTy of
+    Nothing -> return ()
+    Just eTy -> assertTypeRel (<=:) t (" inferred type of "
+                                       ++ show e ++ " is a subtype of ") eTy
+
+elabPolyApp :: MonadElaborate m
+               => Maybe Type
+               -> Expr (Typed a)
+               -> [(TyName, TyBind)]
+               -> ArrowType
+               -> [SType a]
+               -> [Expr a]
+               -> m (Type, Expr' (Typed a))
+elabPolyApp _meTy efun _bvs _arr tyargs eargs =
+  unimplemented $ " poly app" ++ show efun ++ show tyargs ++ show eargs
+               
+
+elabStmts :: MonadElaborate m
+             => [Stmt a]
+             -> ([Stmt (Typed a)] -> m b)
+             -> m b
+elabStmts [] kont = kont []
+elabStmts (stmt:stmts) kont =
+  elabStmt stmt $ \stmt' ->
+  elabStmts stmts $ \stmts' ->
+  kont (stmt':stmts')
+
+elabStmt :: (MonadElaborate m)
+            => Stmt a
+            -> (Stmt (Typed a) -> m b)
+            -> m b
+elabStmt stmt0 = elabStmtCont stmt0 $ \stmt k ->
+  case stmt of
+    VarS v e -> do
+      e' <- elabExpr Nothing e
+      local (extendTermEnv [(v, e'^.ty)]) $ do
+        k (VarS v e') (e'^.ty)
+
+elabStmtCont :: MonadElaborate m
+            => Stmt a
+            -> (Stmt' a
+                -> (Stmt' (Typed a) -> Type -> m b)
+                -> m b)
+            -> (Stmt (Typed a) -> m b)
+            -> m b
+elabStmtCont s0 kwrap kont =
+  case s0 of
+    (s :@: meta) -> kwrap s $ \ s' t ->
+      kont (s' :@: (meta :-: t))
 
 elaborateFunDecl :: forall m a . MonadElaborate m
                     => FunDecl a
@@ -104,12 +213,23 @@ elaborateDecl = elab $ \d -> case d of
   TermD v td -> do
     (tp, td') <- elaborateTermDecl td
     tp                                  -:- TermD v td'
-  AbstypeD _n _k -> undefined
+  AbstypeD n (AbsTB ta k) -> varT n k   -:- AbstypeD n (AbsTB ta k)
 
 elaborateProgram :: MonadElaborate m
                     => [Decl a]
                     -> m [Decl (Typed a)]
-elaborateProgram = mapM elaborateDecl
+elaborateProgram = let
+  go [] k = k []
+  go (d:ds) k = do
+    d' <- elaborateDecl d
+    local (extendElabEnv d') $ go ds $ \ds' -> k (d' : ds')
+  in
+   flip go return
+
+extendElabEnv :: Decl (Typed a) -> ElabEnv -> ElabEnv
+extendElabEnv d0 = case d0^.mValue of
+  TermD v _td -> eeTmEnv . termEnvMapping %~ Map.insert v (d0^.ty)
+  AbstypeD n tb -> eeTyEnv %~ extendTypeEnv [(n, tb)]
 
 assertTypeRel :: MonadError String m =>
                  (Type -> Type -> Bool) -> Type -> String -> Type -> m ()
@@ -121,3 +241,5 @@ typeError :: (Show a, MonadError String m) =>
              a -> String -> m b
 typeError what msg = throwError $ "Type Error: " ++ show what ++ msg
              
+unimplemented :: MonadError String m => String -> m a
+unimplemented what = throwError $ "Unimplemented " ++ show what
