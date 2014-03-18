@@ -24,6 +24,8 @@ library
                    , Gust.Typed
                    , Gust.ElabType
                    , Gust.Check
+                   , Gust.LTI.Constraint
+                   , Gust.LTI.Avoid
   other-modules:     Data.Order
   
   -- Other library packages from which modules are imported.

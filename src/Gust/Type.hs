@@ -29,7 +29,7 @@ type TyName = U.Name Type
 
 data Type' =
   VarT TyName
-  | TopT Kind
+  | TopT
   | BotT
   | BoxT !Type
   | TupleT ![Type]
@@ -85,6 +85,15 @@ tupleT ts = Type {
 boxT :: Type -> Type
 boxT t = Type { _tyRep = BoxT t, _tyKnd = KTy }
 
+topT :: Kind -> Type
+topT k = Type {
+  _tyRep = TopT
+  , _tyKnd = k
+  }
+
+botT :: Type
+botT = Type { _tyRep = BotT, _tyKnd = KTy }
+
 varT :: S.Name -> Kind -> Type
 varT s k = Type {
   _tyRep = VarT (U.s2n s)
@@ -134,7 +143,7 @@ depthSubtype t1 t2 = (t1^.tyRep) ≤ (t2^.tyRep)
     where
       -- (≤) :: U.LFresh m => Type' -> Type' -> m Bool
       BotT       ≤         _  = return True
-      _          ≤ TopT k2    = return $ t1^.tyKnd <=: k2
+      _          ≤ TopT       = return $ t1^.tyKnd <=: t2^.tyKnd
       TupleT ts1 ≤ TupleT ts2 =
         case length ts1 `compare` length ts2 of
           EQ -> liftM and $ zipWithM depthSubtype ts1 ts2
