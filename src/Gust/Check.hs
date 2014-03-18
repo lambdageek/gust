@@ -82,20 +82,27 @@ elabExpr meTy = elab $ \e -> case e of
   BlockE stmts e1 ->
     elabStmts stmts $ \stmts' -> do
       e1' <- elabExpr meTy e1
-      (e1'^.ty)                         -:- BlockE stmts' e1'
+      let e' = BlockE stmts' e1'
+          t' = (e1'^.ty)
+      guardExpectedResult meTy e' t'
+      t'                                -:- e'
   AscribeE e1 t1 -> do
     t1' <- elabTy t1
     e1' <- elabExpr (Just $ t1'^.ty) e1
     assertTypeRel (<=:) (e1'^.ty) "a subtype of ascribed type " (t1'^.ty)
-    (t1'^.ty)                           -:- AscribeE e1' t1'
+    let e' = AscribeE e1' t1'
+        t' = t1'^.ty
+    guardExpectedResult meTy  e' t'
+    t'                                  -:- e'
   ApplyE efun tyargs eargs -> do
     efun' <- elabExpr Nothing efun
     (bvs, arr) <- expectPolyFunType (efun'^.ty)
     if null bvs
       then do
       when (not $ null tyargs) $ do
-        typeError efun' (" applied to " ++ show (length tyargs) ++ " types, expected none")
-      elabMonoApp meTy efun' arr eargs
+        typeError efun' (" applied to " ++ show (length tyargs)
+                         ++ " types, expected none")
+      elabMonoApp meTy (ApplyE efun' []) arr eargs
       else elabPolyApp meTy efun' bvs arr tyargs eargs
   _ -> unimplemented $ show e
 
@@ -110,18 +117,18 @@ expectPolyFunType t =
 
 elabMonoApp :: MonadElaborate m
                => Maybe Type
-               -> Expr (Typed a)
+               -> ([Expr (Typed a)] -> Expr' (Typed a))
                -> ArrowType
                -> [Expr a]
                -> m (Type, Expr' (Typed a))
-elabMonoApp meTy efun' arr eargs = do
+elabMonoApp meTy efunhead arr eargs = do
   unless (length (arrDom arr) == length eargs) $ do
     typeError eargs (" expected exactly "
                      ++ show (length $ arrDom arr) ++ " arguments")
   eargs' <- zipWithM (\argTy earg -> elabExpr (Just argTy) earg)
             (arrDom arr) eargs
   let
-    e' = ApplyE efun' [] eargs'
+    e' = efunhead eargs'
     t' = arrCod arr
   guardExpectedResult meTy e' t'
   t'                                    -:- e'
@@ -145,9 +152,36 @@ elabPolyApp :: MonadElaborate m
                -> [SType a]
                -> [Expr a]
                -> m (Type, Expr' (Typed a))
-elabPolyApp _meTy efun _bvs _arr tyargs eargs =
-  unimplemented $ " poly app" ++ show efun ++ show tyargs ++ show eargs
-               
+elabPolyApp meTy efun' bvs arr tyargs eargs =
+  case (length bvs, length tyargs) of
+    (nparams, nargs) | nparams == nargs -> do
+      -- e<ts>(es) where e : ∀αs.τs→σ.  We typecheck es against
+      -- τs[ts/αs] and give result σ[ts/αs]
+      tyargs' <- traverse elabTy tyargs
+      let
+        substitution = zipWith (\(param, _) arg -> (param, arg^.ty)) bvs tyargs'
+        arr' = U.substs substitution arr
+      elabMonoApp meTy (ApplyE efun' tyargs') arr' eargs
+                     | nparams > 0 && nargs == 0 -> do
+      -- synthesize function arguments
+      eargs' <- traverse (elabExpr Nothing) eargs
+      -- infer omitted type args
+      constrainedTypeInference meTy efun' bvs arr eargs'
+                     | otherwise -> do
+      typeError efun' $ " has "
+        ++ show nparams ++ " type parameters, but was given "
+        ++ show nargs ++ " actual type arguments"
+
+constrainedTypeInference :: MonadElaborate m
+                            => Maybe Type
+                            -> Expr (Typed a)
+                            -> [(TyName, TyBind)]
+                            -> ArrowType
+                            -> [Expr (Typed a)]
+                            -> m (Type, Expr' (Typed a))
+constrainedTypeInference _meTy efun' _bvs _arr eargs' =
+  unimplemented ("type inference for function application "
+                 ++ show efun' ++ show eargs')
 
 elabStmts :: MonadElaborate m
              => [Stmt a]
