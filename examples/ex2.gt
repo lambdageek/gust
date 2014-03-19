@@ -1,4 +1,12 @@
 abstype Int : T
+abstype Bool : T
+
+fun id<a> (x : a) : a = x
+
+fun idTwo (i : Int, b : Bool) : Int = let
+  var res = id(i)
+  var k = id(b)
+  in res
 
 fun f (x:Int, g : (Int, Int) -> Int) : Int = g (x,x)
 
@@ -6,7 +14,6 @@ fun h<a:T> (x:Int, g : (Int, a) -> Int, z : a) : Int = g (x, z)
 
 fun j (x:Int, u : (Int, Int) -> Int) : Int = f (x, u)
 
-fun k<b:T, c: T> (x: Int, g : (Int, b) -> Int, z : c) : Int = let
- -- surprisingly this typechecks because h is instantiated with {Top/a}
+fun k<b:T, c> (x: Int, g : (Int, b) -> Int, z : c) : Int = let
    var ans = h (x, g, z)
  in ans

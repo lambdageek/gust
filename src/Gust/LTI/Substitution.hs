@@ -42,10 +42,13 @@ principalSubstitution :: (Applicative m, MonadError SubstitutionError m)
 principalSubstitution r =
   fmap Substitution . Map.traverseWithKey substitutionType . unConstraintMap
   where
-    substitutionType x c = let
-      l = c^.cnstrLower
-      u = c^.cnstrUpper
-      in case varianceOf x r of
+    substitutionType x c = do
+      when (unsatisfiable c) $
+        unsatisfiableConstraintErr x c
+      let
+        l = c^.cnstrLower
+        u = c^.cnstrUpper
+      case varianceOf x r of
         ConstantVariance        -> return l
         Covariant               -> return l
         Contravariant           -> return u
@@ -64,3 +67,12 @@ invariantConstraintErr x r c =
                        ++ show c
                        ++ " which has identical bounds."
                        ++ " Principal substitution doesn't exist.")
+
+unsatisfiableConstraintErr :: MonadError SubstitutionError m
+                              => TyName
+                              -> Constraint
+                              -> m a
+unsatisfiableConstraintErr x c =
+  throwError
+  $ SubstitutionError ("the variable " ++ show x ++ " has an unsatisfiable constraint "
+                       ++ show c)

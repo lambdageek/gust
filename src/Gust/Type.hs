@@ -175,6 +175,8 @@ depthMeet t1 t2 = (t1^.tyRep) ⋏? (t2^.tyRep)
         Just (vks1, arr1, _vks2, arr2) ->
           liftM (liftM (funT' vks1)) $ depthMeetArr arr1 arr2
 
+    TupleT ts1 ⋏? TupleT ts2 =
+      liftM (liftM tupleT . sequence) $ zipWithM depthMeet ts1 ts2
     _ ⋏? _ = do
       sb1 <- depthSubtype t1 t2
       if sb1
@@ -194,6 +196,8 @@ depthJoin t1 t2 = (t1^.tyRep) ⋎? (t2^.tyRep)
         Nothing -> return Nothing
         Just (vks1, arr1, _vks2, arr2) ->
           liftM (liftM (funT' vks1)) $ depthJoinArr arr1 arr2
+    TupleT ts1 ⋎? TupleT ts2 =
+      liftM (liftM tupleT . sequence) $ zipWithM depthJoin ts1 ts2
     _ ⋎? _ = do
       sb2 <- depthSubtype t1 t2
       if sb2

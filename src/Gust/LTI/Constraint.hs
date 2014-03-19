@@ -37,6 +37,9 @@ instance Preorder Constraint where
     <$> (c1^.cnstrLower /\? c2^.cnstrLower)
     <*> (c1^.cnstrUpper \/? c2^.cnstrUpper)
 
+unsatisfiable :: Constraint -> Bool
+unsatisfiable c = not (c^.cnstrLower <=: c^.cnstrUpper)
+
 instance Lattice Constraint where
   c1 /\ c2 = 
     let t = topT (c1^.cnstrUpper^.tyKnd)

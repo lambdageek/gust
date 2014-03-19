@@ -195,6 +195,9 @@ constrainedTypeInference meTy efun' bvs arr eargs' =
         targs' = map (\(tv, AbsTB _ k) -> sigma (varT' tv k)) bvs
         t' = sigma (arrCod arr)
       -- TODO: want a place to hang the targs'
+      -- This next check isn't necessary if LTI is implemented correctly,
+      -- but it brings piece of mind.
+      mapM_ (\(e,t) -> assertTypeRel (<=:) (e^.ty) " a subtype of " t) $ zip eargs' (map sigma $ arrDom arr)
       t'                                -:- ApplyE efun' [] eargs'
     Just _expectedTy -> do
       unimplemented ("type inference for function application"
