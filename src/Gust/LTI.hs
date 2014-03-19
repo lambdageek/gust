@@ -6,7 +6,8 @@ module Gust.LTI (principalSubstitution,
                  TypeInferenceError(..),
                  ConstraintError(..),
                  Subst.SubstitutionError(..),
-                 Subst.Substitution(..)) where
+                 Subst.Substitution(..),
+                 Subst.applySubstitution) where
 
 import Control.Monad.Error
 import Control.Monad.Reader
@@ -23,13 +24,18 @@ import qualified Gust.LTI.Substitution as Subst
 data TypeInferenceError =
   ConstraintGenTIE ConstraintError
   | SubstitutionTIE Subst.SubstitutionError
+  | FailTIE String
     deriving Show
 
+instance Error TypeInferenceError where
+  strMsg = FailTIE
+
 principalSubstitution :: MonadError TypeInferenceError m
-                         => ([TyName], ArrowType)
+                         => [TyName]
+                         -> ArrowType
                          -> [Type]
                          -> m Subst.Substitution
-principalSubstitution (tvs, funTy) ss = let
+principalSubstitution tvs funTy ss = let
   ts = arrDom funTy
   r = arrCod funTy
   genCnstr = liftM mconcat $ zipWithM generateConstraints ss ts

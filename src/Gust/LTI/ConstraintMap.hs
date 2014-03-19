@@ -14,6 +14,7 @@ import Gust.LTI.Constraint
 -- then L ≤ x ≤ U)
 newtype ConstraintMap =
   ConstraintMap { unConstraintMap :: Map.Map TyName Constraint }
+  deriving Show
 
 instance Monoid ConstraintMap where
   mempty = ConstraintMap mempty

@@ -38,7 +38,9 @@ instance Preorder Constraint where
     <*> (c1^.cnstrUpper \/? c2^.cnstrUpper)
 
 instance Lattice Constraint where
-  c1 /\ c2 = fromMaybe (Constraint botT botT) $ c1 /\? c2
+  c1 /\ c2 = 
+    let t = topT (c1^.cnstrUpper^.tyKnd)
+    in fromMaybe (Constraint t botT) $ c1 /\? c2
   c1 \/ c2 =
     let t = topT (c1^.cnstrUpper^.tyKnd)
-    in fromMaybe (Constraint t t) $ c1 \/? c2
+    in fromMaybe (Constraint t botT) $ c1 \/? c2

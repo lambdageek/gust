@@ -95,8 +95,11 @@ botT :: Type
 botT = Type { _tyRep = BotT, _tyKnd = KTy }
 
 varT :: S.Name -> Kind -> Type
-varT s k = Type {
-  _tyRep = VarT (U.s2n s)
+varT s = varT' (U.s2n s)
+
+varT' :: TyName -> Kind -> Type
+varT' x k = Type {
+  _tyRep = VarT x
   , _tyKnd = k
   }
 

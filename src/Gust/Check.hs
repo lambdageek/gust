@@ -28,6 +28,8 @@ import Gust.Kind
 
 import Gust.ElabType
 
+import Gust.LTI
+
 newtype TermEnv = TermEnv {unTermEnv :: Map.Map Var Type }
 
 termEnvMapping :: Iso' TermEnv (Map.Map Var Type)
@@ -179,9 +181,25 @@ constrainedTypeInference :: MonadElaborate m
                             -> ArrowType
                             -> [Expr (Typed a)]
                             -> m (Type, Expr' (Typed a))
-constrainedTypeInference _meTy efun' _bvs _arr eargs' =
-  unimplemented ("type inference for function application "
-                 ++ show efun' ++ show eargs')
+constrainedTypeInference meTy efun' bvs arr eargs' =
+  case meTy of
+    Nothing -> do
+      -- no contextual info, generate the principal type
+      let
+        tvs = map fst bvs
+        ts = eargs'^..folded.ty
+      sigma <- case principalSubstitution tvs arr ts of
+        Left err -> typeError efun' (show err)
+        Right ok -> return $ applySubstitution ok
+      let
+        targs' = map (\(tv, AbsTB _ k) -> sigma (varT' tv k)) bvs
+        t' = sigma (arrCod arr)
+      -- TODO: want a place to hang the targs'
+      t'                                -:- ApplyE efun' [] eargs'
+    Just _expectedTy -> do
+      unimplemented ("type inference for function application"
+                     ++ " in checking position "
+                     ++ show efun' ++ show eargs')
 
 elabStmts :: MonadElaborate m
              => [Stmt a]

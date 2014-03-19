@@ -2,8 +2,11 @@ abstype Int : T
 
 fun f (x:Int, g : (Int, Int) -> Int) : Int = g (x,x)
 
-fun h<a:T> (x:Int, g : (Int, a) -> Int, z : a) :Int = g (x, z)
+fun h<a:T> (x:Int, g : (Int, a) -> Int, z : a) : Int = g (x, z)
 
 fun j (x:Int, u : (Int, Int) -> Int) : Int = f (x, u)
 
-fun k<b:T> (x: Int, g : (Int, b) -> Int, z : b) : Int = h<b> (x, g, z)
+fun k<b:T, c: T> (x: Int, g : (Int, b) -> Int, z : c) : Int = let
+ -- surprisingly this typechecks because h is instantiated with {Top/a}
+   var ans = h (x, g, z)
+ in ans
