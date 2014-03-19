@@ -14,6 +14,7 @@ import Prelude hiding (sequence)
 import Control.Arrow (first)
 import Control.Lens
 import Control.Monad hiding (sequence)
+import Data.Maybe (isJust)
 import Data.Traversable (sequence)
 
 import Generics.RepLib.R
@@ -131,6 +132,30 @@ widthSubtype t1 t2 = (t1^.tyRep) ≼ (t2^.tyRep)
       else  depthCompare EQ t1 t2
     _          ≼ _ = depthCompare EQ t1 t2
                
+widthJoin :: U.LFresh m => Type -> Type -> m (Maybe Type)
+widthJoin t1 t2 = (t1^.tyRep) ⋎? (t2^.tyRep)
+  where
+    (⋎?) :: U.LFresh m => Type' -> Type' -> m (Maybe Type)
+    TupleT ts1 ⋎? TupleT ts2 = do
+      -- join is the longest common subsequence
+      ts' <- zipWithM (depthCombine EQ) ts1 ts2
+      let ts'' = sequence $ takeWhile isJust ts'
+      return $ fmap tupleT ts''
+    _          ⋎? _          = depthCombine EQ t1 t2
+
+widthMeet :: U.LFresh m => Type -> Type -> m (Maybe Type)
+widthMeet t1 t2 = (t1^.tyRep) ⋏? (t2^.tyRep)
+  where
+    (⋏?) :: U.LFresh m => Type' -> Type' -> m (Maybe Type)
+    TupleT ts1 ⋏? TupleT ts2 = do
+      -- meet is the type such that the other one is a prefix of it
+      common <- liftM sequence $ zipWithM (depthCombine EQ) ts1 ts2
+      let suffix = case length ts1 `compare` length ts2 of
+            LT -> drop (length ts1) ts2
+            GT -> drop (length ts2) ts1
+            EQ -> []
+      return $ fmap tupleT (fmap (++suffix) common)
+    _          ⋏? _          = depthCombine EQ t1 t2
 
 arrSubtype :: U.LFresh m => ArrowType -> ArrowType -> m Bool
 arrSubtype a1 a2 = do
@@ -177,6 +202,8 @@ depthMeet t1 t2 = (t1^.tyRep) ⋏? (t2^.tyRep)
 
     TupleT ts1 ⋏? TupleT ts2 =
       liftM (liftM tupleT . sequence) $ zipWithM depthMeet ts1 ts2
+    BoxT s1 ⋏? BoxT s2 =
+      widthMeet s1 s2
     _ ⋏? _ = do
       sb1 <- depthSubtype t1 t2
       if sb1
@@ -198,6 +225,8 @@ depthJoin t1 t2 = (t1^.tyRep) ⋎? (t2^.tyRep)
           liftM (liftM (funT' vks1)) $ depthJoinArr arr1 arr2
     TupleT ts1 ⋎? TupleT ts2 =
       liftM (liftM tupleT . sequence) $ zipWithM depthJoin ts1 ts2
+    BoxT s1 ⋎? BoxT s2 =
+      widthJoin s1 s2
     _ ⋎? _ = do
       sb2 <- depthSubtype t1 t2
       if sb2
