@@ -55,6 +55,18 @@ principalSubstitution r =
         Invariant | l `U.aeq` u -> return $ c^.cnstrLower
                   | otherwise   -> invariantConstraintErr x r c
 
+-- | anySatisfyingSubstitution C = σ where σ maps each x with C(x)=(L,U) to
+-- some type T such that L ≤ T ≤ U
+anySatisfyingSubstitution :: (Applicative m, MonadError SubstitutionError m)
+                             => ConstraintMap -> m Substitution
+anySatisfyingSubstitution =
+  fmap Substitution . Map.traverseWithKey substitutionType . unConstraintMap
+  where
+    substitutionType x c = do
+      when (unsatisfiable c) $
+        unsatisfiableConstraintErr x c
+      return $ c^.cnstrLower -- arbitrarily pick the lower bound
+      
 invariantConstraintErr :: MonadError SubstitutionError m
                           => TyName
                           -> Type

@@ -10,7 +10,6 @@ module Gust.Check where
 import Prelude hiding (sequence, mapM)
 
 import Control.Applicative
-import Control.Arrow (second)
 import Control.Lens
 import Control.Monad.Error hiding (sequence, mapM)
 import Control.Monad.Reader hiding (sequence, mapM)
@@ -181,28 +180,32 @@ constrainedTypeInference :: MonadElaborate m
                             -> ArrowType
                             -> [Expr (Typed a)]
                             -> m (Type, Expr' (Typed a))
-constrainedTypeInference meTy efun' bvs arr eargs' =
-  case meTy of
-    Nothing -> do
-      -- no contextual info, generate the principal type
-      let
-        tvs = map fst bvs
-        ts = eargs'^..folded.ty
-      sigma <- case principalSubstitution tvs arr ts of
-        Left err -> typeError efun' (show err)
-        Right ok -> return $ applySubstitution ok
-      let
-        targs' = map (\(tv, AbsTB _ k) -> sigma (varT' tv k)) bvs
-        t' = sigma (arrCod arr)
-      -- TODO: want a place to hang the targs'
-      -- This next check isn't necessary if LTI is implemented correctly,
-      -- but it brings piece of mind.
-      mapM_ (\(e,t) -> assertTypeRel (<=:) (e^.ty) " a subtype of " t) $ zip eargs' (map sigma $ arrDom arr)
-      t'                                -:- ApplyE efun' [] eargs'
-    Just _expectedTy -> do
-      unimplemented ("type inference for function application"
-                     ++ " in checking position "
-                     ++ show efun' ++ show eargs')
+constrainedTypeInference meTy efun' bvs arr eargs' = do
+  let
+    tvs = map fst bvs
+    ts = eargs'^..folded.ty
+    msubst = case meTy of
+      Just expectedType -> anySatisfyingSubstitution tvs arr ts expectedType
+      Nothing -> principalSubstitution tvs arr ts
+  sigma <- case msubst of
+    Left err -> typeError efun' (show err)
+    Right ok -> return $ applySubstitution ok
+
+  let
+    -- targs' = map (\(tv, AbsTB _ k) -> sigma (varT' tv k)) bvs
+    -- TODO: want a place to hang the targs'
+
+    t' = case meTy of
+      Nothing -> sigma (arrCod arr)
+      Just expectedType -> expectedType
+
+  -- This next pair of checks isn't necessary if LTI is implemented
+  -- correctly, but it brings piece of mind.
+  mapM_ (\(e,t) -> assertTypeRel (<=:) (e^.ty) "a subtype of " t)
+    $ zip eargs' (map sigma $ arrDom arr)
+  assertTypeRel (<=:) (arrCod arr) "a subtype of" t'
+
+  t'                                -:- ApplyE efun' [] eargs'
 
 elabStmts :: MonadElaborate m
              => [Stmt a]
@@ -259,7 +262,13 @@ elaborateFunDecl funDecl =
 elaborateTermDecl :: MonadElaborate m
                      => TermDecl a
                      -> m (Type, TermDecl (Typed a))
-elaborateTermDecl (FunD fd) = second FunD <$> (elaborateFunDecl fd)
+elaborateTermDecl td0 = case td0 of
+  FunD fd -> do
+    (t', fd') <- elaborateFunDecl fd
+    t'                                  -:- FunD fd'
+  ExternD t -> do
+    t' <- elabTy t
+    (t'^.ty)                            -:- ExternD t'
 
 elaborateDecl :: MonadElaborate m
                  => Decl a
@@ -294,7 +303,7 @@ assertTypeRel relTo t1 relationship t2 =
 
 typeError :: (Show a, MonadError String m) =>
              a -> String -> m b
-typeError what msg = throwError $ "Type Error: " ++ show what ++ msg
+typeError what msg = throwError $ "Type Error: " ++ show what ++ " " ++ msg
              
 unimplemented :: MonadError String m => String -> m a
 unimplemented what = throwError $ "Unimplemented " ++ show what

@@ -1,6 +1,7 @@
 module Gust.LTI.CalculateVariance (
   Variance(..)
   , varianceOf
+  , test_variance1
   ) where
 
 import Control.Lens
@@ -85,8 +86,8 @@ varianceOf' varVariance posVarianceOf negVarianceOf v t =
     varcod <- posVarianceOf $ arrCod arr
     return $ vardom /\ varcod
   
-test1 :: [Variance]
-test1 = let
+test_variance1 :: [Variance]
+test_variance1 = let
   x = varT "x" KTy
   y = varT "y" KTy
 

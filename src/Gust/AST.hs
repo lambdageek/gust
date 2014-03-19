@@ -76,6 +76,7 @@ data Decl' a =
 -- | Term declarations
 data TermDecl a =
   FunD !(FunDecl a)
+  | ExternD !(SType a)
   deriving (Functor, Foldable, Traversable, Data, Typeable, Show)
 
 -- | Function declarations

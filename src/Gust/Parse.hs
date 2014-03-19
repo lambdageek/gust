@@ -65,6 +65,7 @@ instance SourceCode Decl' where
     hereIs 
       (kw "fun" *> parseFun
        <|> kw "abstype" *> parseAbstype
+       <|> kw "extern" *> kw "var" *> parseExternVar
        <?> "declaration")
 
 parseAbstype :: Parser (Decl' (Located ()))
@@ -147,13 +148,21 @@ parseFun = mkFunDecl
         , _fdBody = e
         }
 
+-- (extern var) name : type
+parseExternVar :: Parser (Decl' (Located ()))
+parseExternVar =
+  mkExternVarDecl
+  <$> pvar
+  <*> (colon *> parser)               
+  where
+    mkExternVarDecl name t = TermD name $ ExternD t
 
 
 gustDef :: Tok.LanguageDef st
 gustDef = haskellStyle {
   Tok.reservedNames = [
      -- declarations
-     "fun", "abstype"
+     "fun", "abstype", "extern"
      -- expressions
      , "let", "in", "as"
      -- statements

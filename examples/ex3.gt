@@ -1,0 +1,9 @@
+abstype Int : T
+extern var succ : Int -> Int
+
+extern var deref: forall a . (box(a)) -> a
+
+extern var assign : forall a . (box(a), a) -> ()
+
+fun test (x : box(Int)) : () = 
+  assign (x, succ (deref (x)))
