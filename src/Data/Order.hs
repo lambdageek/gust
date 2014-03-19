@@ -69,6 +69,11 @@ infixl 5 ~~?
 infixl 6 \/?
 infixl 7 /\?
 
+class Preorder a => Lattice a where
+  (\/), (/\) :: a -> a -> a
+
+infixl 6 \/
+infixl 7 /\
 
 instance Preorder a => Preorder (Dual a) where
   a \/? b = Dual <$> getDual a /\? getDual b
@@ -140,3 +145,26 @@ instance (Preorder a, Preorder b) => Preorder (Either a b) where
   Left a  <:   Left a'   = a <: a'
   Right b <:   Right b'  = b <: b'
   _       <:   _         = False
+
+
+instance Lattice a => Lattice (Dual a) where
+  a \/ b = Dual (getDual a /\ getDual b)
+  a /\ b = Dual (getDual a \/ getDual b)
+
+instance (Lattice a, Lattice b) => Lattice (a, b) where
+  (a,b) \/ (a',b') = (a\/a', b\/b')
+  (a,b) /\ (a',b') = (a/\a', b/\b')
+
+instance (Lattice a, Lattice b, Lattice c) => Lattice (a, b, c) where
+  (a,b,c) \/ (a',b',c') = (a\/a', b\/b', c\/c')
+  (a,b,c) /\ (a',b',c') = (a/\a', b/\b', c/\c')
+
+instance (Lattice a, Lattice b, Lattice c, Lattice d) =>
+         Lattice (a, b, c, d) where
+  (a,b,c,d) \/ (a',b',c',d') = (a\/a', b\/b', c\/c', d\/d')
+  (a,b,c,d) /\ (a',b',c',d') = (a/\a', b/\b', c/\c', d/\d')
+
+instance (Lattice a, Lattice b, Lattice c, Lattice d, Lattice e) =>
+         Lattice (a, b, c, d, e) where
+  (a,b,c,d,e) \/ (a',b',c',d',e') = (a\/a', b\/b', c\/c', d\/d', e\/e')
+  (a,b,c,d,e) /\ (a',b',c',d',e') = (a/\a', b/\b', c/\c', d/\d', e/\e')

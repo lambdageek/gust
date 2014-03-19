@@ -7,6 +7,8 @@ module Gust.LTI.Constraint where
 import Control.Lens
 import Control.Applicative
 
+import Data.Maybe (fromMaybe)
+
 import Data.Order
 
 import Gust.Type
@@ -34,3 +36,9 @@ instance Preorder Constraint where
     Constraint
     <$> (c1^.cnstrLower /\? c2^.cnstrLower)
     <*> (c1^.cnstrUpper \/? c2^.cnstrUpper)
+
+instance Lattice Constraint where
+  c1 /\ c2 = fromMaybe (Constraint botT botT) $ c1 /\? c2
+  c1 \/ c2 =
+    let t = topT (c1^.cnstrUpper^.tyKnd)
+    in fromMaybe (Constraint t t) $ c1 \/? c2

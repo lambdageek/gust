@@ -24,8 +24,13 @@ library
                    , Gust.Typed
                    , Gust.ElabType
                    , Gust.Check
+                   , Gust.LTI
                    , Gust.LTI.Constraint
+                   , Gust.LTI.ConstraintMap
                    , Gust.LTI.Avoid
+                   , Gust.LTI.GenerateConstraints
+                   , Gust.LTI.CalculateVariance
+                   , Gust.LTI.Substitution
   other-modules:     Data.Order
   
   -- Other library packages from which modules are imported.
