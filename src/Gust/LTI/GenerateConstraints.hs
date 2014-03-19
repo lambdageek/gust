@@ -77,6 +77,8 @@ generateConstraints s t = do
     _                                               -> cannotSatisfyErr s t
 
 
+-- | Generate constraint for V⊢ₓ (Ss₁→T₁)≤(Ss₂→T₂) ⇒ Cs∧D
+-- where V⊢ₓ Ss₂≤Ss₁ ⇒ Cs   and V⊢ₓ T₁≤T₂ ⇒ D
 generateConstraintArr :: (U.LFresh m,
                           MonadError ConstraintError m,
                           MonadReader ConstraintEnv m)
@@ -92,10 +94,41 @@ generateConstraintArr (bvs, arr1, _, arr2) =
     cnsCod <- generateConstraints (arrCod arr1) (arrCod arr2)
     return $ cnsDom `mappend` cnsCod
 
-widthConstraint :: (MonadError ConstraintError m)
+-- | Generate constraints C for the problem V⊢ₓ S ≤w T ⇒ C
+--
+-- There is a  slightly tricky case here that we punt on.
+-- Consider  V⊢ₓ S ≤w Y (and the symmetric case with an upper bound)
+-- where Y∈X is one of the unknowns that we're trying
+-- to solve for.  In that case we want to kick out a constraint:
+--   {S ≤w Y ≤w ⊤wk}
+-- (where ⊤wk is the top for width subtyping for the kind k of Y)
+-- but we dont' have width constraints.  So instead we kick out the constraint
+--   {S ≤ Y ≤ S}
+-- which is wrong, but maybe the additional expressive power isn't useful?
+widthConstraint :: (U.LFresh m,
+                    MonadError ConstraintError m,
+                    MonadReader ConstraintEnv m)
                    => Type
                    -> Type
                    -> m ConstraintMap
-widthConstraint s t =
-  throwError $ ConstraintError ("unimplemented: width constraint "
-                                ++ show s ++ " <=w " ++ show t)
+widthConstraint s t = do
+  -- xs <- view cenvUnknown
+  case (s^.tyRep, t^.tyRep) of
+    (TupleT ts1, TupleT ts2) ->
+      if length ts1 >= length ts2
+      then liftM mconcat $ zipWithM depthEquivConstraint ts1 ts2
+      else depthEquivConstraint s t
+    -- (VarT v, TupleT ts2) | v ∈ xs -> omitted, falling through. see comment
+    -- (TupleT ts1, VarT v) | v ∈ xs -> omitted, falling through. see comment
+    (_, _) -> depthEquivConstraint s t
+
+-- | Generate equivalence constraint:  V⊢ₓ S≡T ⇒ C∧D
+--  where V⊢ₓ S≤T ⇒ C  and V⊢ₓ T≤S ⇒ D
+depthEquivConstraint :: (U.LFresh m,
+                         MonadError ConstraintError m,
+                         MonadReader ConstraintEnv m)
+                        => Type
+                        -> Type
+                        -> m ConstraintMap
+depthEquivConstraint s t =
+  liftM2 mappend (generateConstraints s t) (generateConstraints t s)

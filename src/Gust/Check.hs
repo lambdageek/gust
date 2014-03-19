@@ -203,7 +203,7 @@ constrainedTypeInference meTy efun' bvs arr eargs' = do
   -- correctly, but it brings piece of mind.
   mapM_ (\(e,t) -> assertTypeRel (<=:) (e^.ty) "a subtype of " t)
     $ zip eargs' (map sigma $ arrDom arr)
-  assertTypeRel (<=:) (arrCod arr) "a subtype of" t'
+  assertTypeRel (<=:) (sigma $ arrCod arr) "a subtype of" t'
 
   t'                                -:- ApplyE efun' [] eargs'
 
