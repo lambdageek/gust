@@ -1,0 +1,1 @@
+fun w<a, b> (z : (a, b)) : a = prj 0 z

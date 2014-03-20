@@ -96,8 +96,10 @@ type TermBinding a = (Var, SType a)
 data Expr' a =
   -- | Variables
   VarE     !Var
-  -- | Tuples
+  -- | Tuple introduction
   | TupleE ![Expr a]
+  -- | Tuple projection
+  | PrjE !(Expr a) !Nat
     -- | Polymorphic function application  e <tys> (es)  or e (es)
   | ApplyE !(Expr a) ![SType a] ![Expr a]
     -- | Type ascription  (e as t)

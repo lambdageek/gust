@@ -88,6 +88,9 @@ instance SourceCode Expr' where
       atomicExpr =
         hereIs ((VarE <$> pvar)
                 <|> parens tuplishExpr
+                <|> (flip PrjE
+                     <$> (kw "prj" *> natural)
+                     <*> parser)
                 <|> (BlockE
                      <$> (kw "let" *> many parser)
                      <*> (kw "in" *> parser)))
@@ -164,7 +167,7 @@ gustDef = haskellStyle {
      -- declarations
      "fun", "abstype", "extern"
      -- expressions
-     , "let", "in", "as"
+     , "let", "in", "as", "prj"
      -- statements
      , "var"
      -- types
@@ -182,6 +185,17 @@ tok = Tok.makeTokenParser gustDef
 
 kw :: String -> Parser ()
 kw = Tok.reserved tok
+
+guardParser :: (a -> Bool) -> Parser a -> Parser a
+guardParser isOk comp = do
+  x <- comp
+  if isOk x then return x else parserZero
+
+natural :: Parser Nat
+natural = (fromIntegral <$> Tok.natural tok)
+
+whole :: Parser Nat
+whole = (guardParser (> 0) natural) <?> "strictly positive whole number"
 
 parens :: Parser a -> Parser a
 parens = Tok.parens tok

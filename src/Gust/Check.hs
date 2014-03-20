@@ -105,7 +105,28 @@ elabExpr meTy = elab $ \e -> case e of
                          ++ " types, expected none")
       elabMonoApp meTy (ApplyE efun' []) arr eargs
       else elabPolyApp meTy efun' bvs arr tyargs eargs
-  _ -> unimplemented $ show e
+  TupleE es -> do
+    let
+      mets = case meTy^?_Just.tyRep of
+        Just (TupleT ts) | length ts == length es ->
+          map Just ts
+        _ -> replicate (length es) Nothing
+    es' <- zipWithM elabExpr mets es
+    let
+      e' = TupleE es'
+      t' = tupleT $ es'^..folded.ty
+    guardExpectedResult meTy e' t'
+    t'                                  -:- e'
+  PrjE e1 n -> do
+    e1' <- elabExpr Nothing e1
+    t' <- case e1'^.ty.tyRep of
+      TupleT ts | n < length ts -> return (ts !! n)
+      _ -> typeError e1 $ " not a tuple of at least " ++ show (n+1) ++ " elements"
+    let
+      e' = PrjE e1' n
+    guardExpectedResult meTy e' t'
+    t'                                  -:- e'
+  -- _ -> unimplemented $ show e
 
 expectPolyFunType :: MonadElaborate m
                      => Type

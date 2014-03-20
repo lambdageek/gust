@@ -19,6 +19,8 @@ import qualified Unbound.LocallyNameless as U
 import Data.Order
 
 data Kind = KTy
+type Nat = Int
+
           deriving (Eq, Ord, Show, Data, Typeable)
 
 -- | AbsTB ks k is an abstract type constructor binding of arity |ks|
