@@ -59,10 +59,10 @@ generateConstraints s t = do
   case (s^.tyRep, t^.tyRep) of
     (BotT, _)                                       -> return mempty
     (_, TopT)                                       -> return mempty
-    (VarT v, _) | v ∈ xs                            -> do
+    (VarT v, _) | v ∈ xs && s^.tyKnd == t^.tyKnd    -> do
       vs <- view cenvAvoid
       liftM (boundedAbove v) (avoidDown vs t)
-    (_, VarT v) | v ∈ xs                            -> do
+    (_, VarT v) | v ∈ xs && s^.tyKnd == t^.tyKnd    -> do
       vs <- view cenvAvoid
       liftM (boundedBelow v) (avoidUp vs s)
     (VarT x, VarT y) | x == y {- && x ∉ xs -}       -> return mempty
