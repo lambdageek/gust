@@ -70,10 +70,10 @@ instance SourceCode Decl' where
        <?> "declaration")
 
 parseAbstype :: Parser (Decl' (Located ()))
-parseAbstype = AbstypeD <$> identifier <*> (colon *> parseTyBind)
+parseAbstype = AbstypeD <$> identifier <*> (colon *> parseTyConBind)
   
-parseTyBind :: Parser TyBind
-parseTyBind = AbsTB 
+parseTyConBind :: Parser TyConBind
+parseTyConBind = AbsTB 
               <$> (option [] $ angles (commaSep parseKind))
               <*> parseKind
 
@@ -126,7 +126,7 @@ parseKind = parens parseKind
 typeBindings :: Parser [TypeBinding]
 typeBindings = commaSep ((,)
                          <$> identifier
-                         <*> option (AbsTB [] (KTy 1)) (colon *> parseTyBind))
+                         <*> option (KTy 1) (colon *> parseKind))
                <?> "type variable binding(s)"
 
 termBindings :: Parser [TermBinding (Located ())]

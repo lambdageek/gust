@@ -1,1 +1,1 @@
-forall a : <T,T>T, b . (a (b,b)) -> b
+forall a : T, b . (a, (b,b)) -> b

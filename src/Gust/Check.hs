@@ -130,7 +130,7 @@ elabExpr meTy = elab $ \e -> case e of
 
 expectPolyFunType :: MonadElaborate m
                      => Type
-                     -> m ([(TyName, TyBind)], ArrowType)
+                     -> m ([(TyName, Kind)], ArrowType)
 expectPolyFunType t =
   case t^.tyRep of
     FunT bnd -> U.unbind bnd
@@ -169,7 +169,7 @@ guardExpectedResult meTy e t =
 elabPolyApp :: MonadElaborate m
                => Maybe Type
                -> Expr (Typed a)
-               -> [(TyName, TyBind)]
+               -> [(TyName, Kind)]
                -> ArrowType
                -> [SType a]
                -> [Expr a]
@@ -197,7 +197,7 @@ elabPolyApp meTy efun' bvs arr tyargs eargs =
 constrainedTypeInference :: MonadElaborate m
                             => Maybe Type
                             -> Expr (Typed a)
-                            -> [(TyName, TyBind)]
+                            -> [(TyName, Kind)]
                             -> ArrowType
                             -> [Expr (Typed a)]
                             -> m (Type, Expr' (Typed a))
@@ -264,8 +264,10 @@ elabStmtCont s0 kwrap kont =
 elaborateFunDecl :: forall m a . MonadElaborate m
                     => FunDecl a
                     -> m (Type, FunDecl (Typed a))
-elaborateFunDecl funDecl = 
-  local (extendTypeEnv $ funDecl^.fdTyArgs) $ do
+elaborateFunDecl funDecl = do
+  let
+    tvcs = map (\(v,k) -> (v, AbsTB [] k)) $ funDecl^.fdTyArgs
+  local (extendTypeEnv tvcs) $ do
     args' <- funDecl^!!fdArgs.folded.alongside id (act elabTy)
     result' <- elabTy (funDecl^.fdResult)
     local (extendTermEnv (args' & traverse._2 %~ view ty)) $ do
@@ -298,7 +300,7 @@ elaborateDecl = elab $ \d -> case d of
   TermD v td -> do
     (tp, td') <- elaborateTermDecl td
     tp                                  -:- TermD v td'
-  AbstypeD n (AbsTB ta k) -> varT n k   -:- AbstypeD n (AbsTB ta k)
+  AbstypeD n (AbsTB ta k) -> botT       -:- AbstypeD n (AbsTB ta k)
 
 elaborateProgram :: MonadElaborate m
                     => [Decl a]

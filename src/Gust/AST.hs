@@ -71,7 +71,7 @@ type Program a = [Decl a]
 -- | A declaration declares either a term or a type
 data Decl' a =
   TermD !Var !(TermDecl a)
-  | AbstypeD !Name !TyBind
+  | AbstypeD !Name !TyConBind
   deriving (Functor, Foldable, Traversable, Data, Typeable, Show)
 
 -- | Term declarations
@@ -90,7 +90,7 @@ data FunDecl a =
     }
   deriving (Functor, Foldable, Traversable, Data, Typeable, Show)
            
-type TypeBinding = (Name, TyBind)
+type TypeBinding = (Name, Kind)
 type TermBinding a = (Var, SType a)
 
 -- | Expressions

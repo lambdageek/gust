@@ -29,12 +29,12 @@ import qualified Gust.AST as S
 type TyName = U.Name Type
 
 data Type' =
-  VarT TyName
+  VarT TyName ![Type] -- invariant: fully applied tyvar
   | TopT
   | BotT
   | BoxT !Type
   | TupleT ![Type]
-  | FunT (U.Bind [(TyName, TyBind)] ArrowType)
+  | FunT (U.Bind [(TyName, Kind)] ArrowType)
     deriving (Show)
 
 data ArrowType =
@@ -62,14 +62,17 @@ instance U.Alpha Type'
 instance U.Alpha ArrowType
 
 instance U.Subst Type Type' where
-  isCoerceVar (VarT nm) = Just $ U.SubstCoerce nm (\b -> Just $ b^.tyRep)
-  isCoerceVar _ = Nothing
+  -- only 0-arg variables are variables, if there are more, it's a
+  -- type constructor application which we don't currently substitute for.
+  isCoerceVar (VarT nm [])     = Just $ U.SubstCoerce nm (\b -> Just $ b^.tyRep)
+  isCoerceVar (VarT _nm (_:_)) = Nothing
+  isCoerceVar _                = Nothing
 
 -- there are no variable occurrences directly in ArrowType or in Kinds
 instance U.Subst Type ArrowType
 
 instance U.Subst Type Kind
-instance U.Subst Type TyBind
+instance U.Subst Type TyConBind
 
 instance U.Subst Type Type
 
@@ -95,23 +98,23 @@ topT k = Type {
 botT :: Type
 botT = Type { _tyRep = BotT, _tyKnd = KTy 0}
 
-varT :: S.Name -> Kind -> Type
-varT s = varT' (U.s2n s)
+varT :: S.Name -> Kind -> [Type] -> Type
+varT s = varT' (U.s2n s) 
 
-varT' :: TyName -> Kind -> Type
-varT' x k = Type {
-  _tyRep = VarT x
+varT' :: TyName -> Kind -> [Type] -> Type
+varT' x k args = Type {
+  _tyRep = VarT x args
   , _tyKnd = k
   }
 
-funT' :: [(TyName, TyBind)] -> ArrowType -> Type
+funT' :: [(TyName, Kind)] -> ArrowType -> Type
 funT' bound arr = let
   in Type {
     _tyRep = FunT (U.bind bound arr)
     , _tyKnd = KTy 1
     }
 
-funT :: [(S.Name, TyBind)] -> [Type] -> Type -> Type
+funT :: [(S.Name, Kind)] -> [Type] -> Type -> Type
 funT tvks doms cod = let
   bound = map (first U.s2n) tvks
   in funT' bound $ ArrowType doms cod
@@ -161,21 +164,21 @@ arrSubtype :: U.LFresh m => ArrowType -> ArrowType -> m Bool
 arrSubtype a1 a2 = do
   let
     argsOk = length (arrDom a1) == length (arrDom a2)
-  domOk <- liftM and $ zipWithM depthSubtype (arrDom a2) (arrDom a1)
+  domOk <- depthCompares LT (arrDom a2) (arrDom a1)
   codOk <- arrCod a1 `depthSubtype` arrCod a2
   return $ argsOk && domOk && codOk
   
-
 depthSubtype :: U.LFresh m => Type -> Type -> m Bool
 depthSubtype t1 t2 = (t1^.tyRep) ≤ (t2^.tyRep)
     where
       -- (≤) :: U.LFresh m => Type' -> Type' -> m Bool
       BotT       ≤         _  = return True
       _          ≤ TopT       = return $ t1^.tyKnd <=: t2^.tyKnd
-      TupleT ts1 ≤ TupleT ts2 =
-        case length ts1 `compare` length ts2 of
-          EQ -> liftM and $ zipWithM depthSubtype ts1 ts2
-          _  -> return $ False
+      VarT v1 args1 ≤ VarT v2 args2 | v1 == v2 =
+        -- assume all type constructors are invariant in their arguments.
+        -- TODO: add polarity declarations to variables
+        depthCompares EQ args1 args2
+      TupleT ts1 ≤ TupleT ts2 = depthCompares LT ts1 ts2
       BoxT t1'   ≤ BoxT t2'   = widthSubtype t1' t2'
       FunT barr1 ≤ FunT barr2 =
         U.lunbind2 barr1 barr2 $ \r ->
@@ -184,6 +187,11 @@ depthSubtype t1 t2 = (t1^.tyRep) ≤ (t2^.tyRep)
           Just (_, arr1, _, arr2) -> arrSubtype arr1 arr2
       _          ≤ _          = return $ t1 `U.aeq` t2
      
+depthCompares :: U.LFresh m => Direction -> [Type] -> [Type] -> m Bool
+depthCompares dir xs ys
+  | length xs == length ys = liftM and $ zipWithM (depthCompare dir) xs ys
+  | otherwise              = return False
+
 depthCompare :: U.LFresh m => Direction -> Type -> Type -> m Bool
 depthCompare LT = depthSubtype
 depthCompare GT = flip depthSubtype

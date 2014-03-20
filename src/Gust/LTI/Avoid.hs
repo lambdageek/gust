@@ -11,9 +11,7 @@ import qualified Data.Set as Set
 import qualified Unbound.LocallyNameless as U
 
 import Gust.Type
-
-(∈) :: Ord a => a -> Set.Set a -> Bool
-(∈) = Set.member
+import Gust.Internal.Utils ((∈))
 
 alsoAvoid :: [(TyName, a)] -> Set.Set TyName -> Set.Set TyName
 alsoAvoid ws = Set.union (Set.fromList $ map fst ws)
@@ -26,8 +24,11 @@ alsoAvoid ws = Set.union (Set.fromList $ map fst ws)
 -- for every kind k.
 avoidUp :: U.LFresh m => Set.Set TyName -> Type -> m Type
 avoidUp vs s = case s^.tyRep of
-  VarT n | n ∈ vs    -> return $ topT (s^.tyKnd)
-         | otherwise -> return s
+  VarT n args
+    | n ∈ vs         -> return $ topT (s^.tyKnd)
+    | otherwise      -> return $ if all (doesntMention vs) args
+                                 then s
+                                 else topT (s^.tyKnd)
   TopT               -> return s
   BotT               -> return s
   BoxT s1            -> do
@@ -50,14 +51,14 @@ avoidUpArr vs arr =
 -- below every well-formed type.
 avoidDown :: U.LFresh m => Set.Set TyName -> Type -> m Type
 avoidDown vs s = case s^.tyRep of
-  VarT n | n ∈ vs    -> return $ botT
-         | otherwise -> return s
-  TopT       -> return s
-  BotT -> return s
-  BoxT s1 -> do
-    return $ if doesntMention vs s1 then s else botT
-  TupleT ss -> liftM tupleT $ mapM (avoidDown vs) ss
-  FunT bnd -> U.lunbind bnd $ \(bnds, arr) ->
+  VarT n args
+    | n ∈ vs    -> return $ botT
+    | otherwise -> return $ if all (doesntMention vs) args then s else botT
+  TopT          -> return s
+  BotT          -> return s
+  BoxT s1       -> return $ if doesntMention vs s1 then s else botT
+  TupleT ss     -> liftM tupleT $ mapM (avoidDown vs) ss
+  FunT bnd      -> U.lunbind bnd $ \(bnds, arr) ->
     liftM (funT' bnds) $ avoidDownArr (alsoAvoid bnds vs) arr
 
 avoidDownArr :: U.LFresh m => Set.Set TyName -> ArrowType -> m ArrowType

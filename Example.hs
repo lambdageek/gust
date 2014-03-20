@@ -29,7 +29,10 @@ import Data.Order
 data ExampleError =
   ExParseE ParseError -- ^ parser error
   | ExElabE String -- ^ elaboration error
-    deriving Show
+
+instance Show ExampleError where
+  showsPrec _ (ExParseE pe) = showString "Parser Error: " . shows pe
+  showsPrec _ (ExElabE msg) = showString "Elaboration Error: " . showString msg
 
 
 p :: Parser a -> FilePath -> IO (Either ExampleError a)
@@ -72,11 +75,12 @@ rp :: FilePath -> IO (Program (Typed (Located ())))
 rp fp = do
   t0 <- p parseProgram fp
   case t0 >>= elaborateProgram of
-    Left err -> error $ show err
+    Left err -> do { putStrLn (show err) ; error "elaboration failed" }
     Right ans -> return ans
 
-test1 :: Type
-test1 = rr "forall a : <T,T>T, b . (a (b,b)) -> b"
+-- Not doing higher order quantification yet.
+-- test1 :: Type
+-- test1 = rr "forall a : <T,T>T, b . (a (b,b)) -> b"
 
 test2 :: Type
 test2 = rr "forall a, b . (a, a) -> b"

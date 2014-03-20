@@ -20,19 +20,20 @@ import Data.Order
 
 type Nat = Int
 
+-- | KTy n is the classifier of types of size n
 data Kind = KTy !Nat
           deriving (Eq, Ord, Show, Data, Typeable)
 
 -- | AbsTB ks k is an abstract type constructor binding of arity |ks|
-data TyBind = AbsTB ![Kind] !Kind
+data TyConBind = AbsTB ![Kind] !Kind
             deriving (Show, Data, Typeable)
 
 derive [''Kind]
 
-derive [''TyBind]
+derive [''TyConBind]
 
 instance U.Alpha Kind
-instance U.Alpha TyBind
+instance U.Alpha TyConBind
 
 instance Preorder Kind where
   KTy n <=: KTy m        = n == m

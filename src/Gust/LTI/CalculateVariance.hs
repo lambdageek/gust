@@ -9,11 +9,12 @@ import Control.Monad
 
 import qualified Unbound.LocallyNameless as U
 
+import Data.Order
+
 import Gust.Kind
 import Gust.Type
 
-import Data.Order
-
+import Gust.Internal.Utils ((∈))
 
 data Variance =
   ConstantVariance
@@ -72,14 +73,19 @@ varianceOf' :: U.LFresh m
                -> m Variance
 varianceOf' varVariance posVarianceOf negVarianceOf v t =
   case t^.tyRep of
-  VarT v' | v == v'   -> return varVariance
-          | otherwise -> return ConstantVariance
+  VarT v' _args
+    -- N.B. null args when v == v', because we only quantify over
+    -- types, not constructors.
+    | v == v'         -> return varVariance
+    | otherwise       -> return ConstantVariance
   TopT                -> return ConstantVariance
   BotT                -> return ConstantVariance
   TupleT ts           ->
     -- tuples are covariant
     liftM (foldl (/\) ConstantVariance) $ mapM posVarianceOf ts
-  BoxT _              -> return Invariant
+  BoxT t1
+    | v ∈ U.fv(t1)    -> return Invariant
+    | otherwise       -> return ConstantVariance
   FunT bnd            -> U.lunbind bnd $ \(_, arr) -> do
     vardom <- liftM (foldl (/\) ConstantVariance)
               $ mapM negVarianceOf $ arrDom arr
@@ -88,8 +94,8 @@ varianceOf' varVariance posVarianceOf negVarianceOf v t =
   
 test_variance1 :: [Variance]
 test_variance1 = let
-  x = varT "x" (KTy 1)
-  y = varT "y" (KTy 2)
+  x = varT "x" (KTy 1) []
+  y = varT "y" (KTy 2) []
 
   t ~~> t' = funT [] [t] t'
 

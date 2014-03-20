@@ -17,7 +17,8 @@ import qualified Unbound.LocallyNameless as U
 import Gust.Kind
 import Gust.Type
 import Gust.LTI.ConstraintMap
-import Gust.LTI.Avoid (avoidUp, avoidDown, (∈), alsoAvoid)
+import Gust.LTI.Avoid (avoidUp, avoidDown, alsoAvoid)
+import Gust.Internal.Utils ((∈))
 
 data ConstraintEnv = ConstraintEnv {
   _cenvAvoid     :: Set.Set TyName -- ^ variables that must not occur
@@ -59,18 +60,22 @@ generateConstraints s t = do
   case (s^.tyRep, t^.tyRep) of
     (BotT, _)                                       -> return mempty
     (_, TopT)                                       -> return mempty
-    (VarT v, _) | v ∈ xs && s^.tyKnd == t^.tyKnd    -> do
+    (VarT v [], _) | v ∈ xs && s^.tyKnd == t^.tyKnd -> do
       vs <- view cenvAvoid
       liftM (boundedAbove v) (avoidDown vs t)
-    (_, VarT v) | v ∈ xs && s^.tyKnd == t^.tyKnd    -> do
+    (_, VarT v []) | v ∈ xs && s^.tyKnd == t^.tyKnd -> do
       vs <- view cenvAvoid
       liftM (boundedBelow v) (avoidUp vs s)
-    (VarT x, VarT y) | x == y {- && x ∉ xs -}       -> return mempty
+    (VarT x args1, VarT y args2)
+      | x == y {- && x ∉ xs -}                      ->
+        -- assuming that type constructor x is invariant in its arguments.
+        liftM mconcat $ zipWithM depthEquivConstraint args1 args2
     (TupleT ss, TupleT ts) | length ss == length ts ->
       liftM mconcat $ zipWithM generateConstraints ss ts
     (BoxT s1, BoxT t1)                              -> widthConstraint s1 t1
     (FunT bnd1, FunT bnd2)                          -> do
-      mC <- U.lunbind2 bnd1 bnd2 (maybe (return Nothing) (liftM Just . generateConstraintArr))
+      mC <- U.lunbind2 bnd1 bnd2 (maybe (return Nothing)
+                                  (liftM Just . generateConstraintArr))
       case mC of
         Just c                                      -> return c
         Nothing                                     -> cannotSatisfyErr s t
@@ -82,7 +87,7 @@ generateConstraints s t = do
 generateConstraintArr :: (U.LFresh m,
                           MonadError ConstraintError m,
                           MonadReader ConstraintEnv m)
-                         => ([(TyName, TyBind)]
+                         => ([(TyName, Kind)]
                             , ArrowType    
                             , a
                             , ArrowType)

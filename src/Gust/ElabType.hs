@@ -8,6 +8,7 @@
 module Gust.ElabType where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Reader.Class
 import Control.Monad.Error.Class
 import Control.Lens
@@ -22,7 +23,7 @@ import qualified Gust.Type as T
 import Gust.Typed
 import Gust.Kind
 
-newtype TypeEnv = TypeEnv (Map.Map S.Name TyBind)
+newtype TypeEnv = TypeEnv (Map.Map S.Name TyConBind)
 
 makeIso ''TypeEnv
 
@@ -32,12 +33,16 @@ class HasTyEnv e where
 instance HasTyEnv TypeEnv where
   tyEnv = id
 
-extendTypeEnv :: HasTyEnv e => [(S.Name, TyBind)] -> e -> e
+extendTypeEnv :: HasTyEnv e => [(S.Name, TyConBind)] -> e -> e
 extendTypeEnv xs = tyEnv . from typeEnv %~ Map.union (Map.fromList xs)
 
-elab :: Functor f => (syn c -> f (T.Type, syn (Typed c))) -> S.Meta syn c -> f (S.Meta syn (Typed c))
+elab :: (MonadError String m, Show (syn c))
+        => (syn c -> m (T.Type, syn (Typed c)))
+        -> S.Meta syn c
+        -> m (S.Meta syn (Typed c))
 elab f (a S.:@: m) =
-  (\(t, a') -> a' S.:@: (m :-: t)) <$> f a
+  (liftM (\(t, a') -> a' S.:@: (m :-: t)) (f a))
+  `catchError` (\errMsg -> throwError $ errMsg ++ "\n  near " ++ show a)
 
 type MonadElabTy r m = (Applicative m, HasTyEnv r , MonadReader r m,
                         MonadError String m)
@@ -70,9 +75,14 @@ elabTy = elab $ \t -> case t of
                 assertElab (arg^.ty.T.tyKnd <=: k)
                 (" expected " ++ show arg ++ " to have kind " ++ show k))
           (zip tys' ks)
-        T.varT tv kout          -:- S.AppST tv tys'
+        let
+          targs' = tys'^..folded.ty
+        T.varT tv kout targs'           -:- S.AppST tv tys'
   S.FunST tvks doms cod -> do
-    (doms', cod') <- local (extendTypeEnv tvks) $ do
+    let
+      -- turn kinds into tycon bindings: v:Tk  becomes v:<>Tk
+      tvcs = map (\(v,k) -> (v, AbsTB [] k)) tvks
+    (doms', cod') <- local (extendTypeEnv tvcs) $ do
       (,) <$> traverse elabTy doms <*> elabTy cod
     T.funT tvks (doms'^..folded.ty) (cod'^.ty)
                                 -:- S.FunST tvks doms' cod'
