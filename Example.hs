@@ -87,6 +87,9 @@ test3 = rr "forall a, b . (box (a, a)) -> b"
 test4 :: Type
 test4 = rr "forall a, b . (box (a, a, a)) -> b"
 
+test5 :: Type
+test5 = rr "(⊤, (), ⊤ 2)"
+
 testCmp34 :: Bool
 testCmp34 = test3 <=: test4
 

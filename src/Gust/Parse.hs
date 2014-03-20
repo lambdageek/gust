@@ -34,6 +34,7 @@ instance SourceCode SType' where
     hereIs
     ((BoxST
           <$> (box *> parser))
+     <|> TopST <$> (top *> option 1 whole)
      <|> try (AppST
               <$> identifier
               <*> parens (commaSep parser))
@@ -120,12 +121,12 @@ pvar = UserV <$> identifier
 
 parseKind :: Parser Kind
 parseKind = parens parseKind
-            <|> (kw "T" *> pure KTy)
+            <|> (kw "T" *> (KTy <$> option 1 whole))
 
 typeBindings :: Parser [TypeBinding]
 typeBindings = commaSep ((,)
                          <$> identifier
-                         <*> option (AbsTB [] KTy) (colon *> parseTyBind))
+                         <*> option (AbsTB [] (KTy 1)) (colon *> parseTyBind))
                <?> "type variable binding(s)"
 
 termBindings :: Parser [TermBinding (Located ())]
@@ -176,7 +177,7 @@ gustDef = haskellStyle {
      , "T"
      ]
   , Tok.reservedOpNames = [
-     "->", "→", "∀", "̱□"
+     "->", "→", "∀", "̱□", "⊤"
      ]
   }
 
@@ -223,6 +224,9 @@ forall = kw "forall" <|> Tok.reservedOp tok "∀"
 
 box :: Parser ()
 box = kw "box" <|> Tok.reservedOp tok "□"
+
+top :: Parser ()
+top = Tok.reservedOp tok "⊤"
 
 identifier :: Parser String
 identifier = Tok.identifier tok

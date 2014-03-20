@@ -1,5 +1,6 @@
 abstype Int : T
 abstype Bool : T
+abstype Gate : T 4
 
 fun id<a> (x : a) : a = x
 

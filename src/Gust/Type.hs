@@ -17,7 +17,7 @@ import Control.Monad hiding (sequence)
 import Data.Maybe (isJust)
 import Data.Traversable (sequence)
 
-import Generics.RepLib.R
+import Generics.RepLib.R hiding (to)
 import qualified Unbound.LocallyNameless as U
 import qualified Unbound.LocallyNameless.Subst as U
 
@@ -80,11 +80,11 @@ instance Eq Type where
 tupleT :: [Type] -> Type
 tupleT ts = Type {
   _tyRep = TupleT ts
-  , _tyKnd = KTy
+  , _tyKnd = KTy (sumOf (folded . tyKnd . to kSize) ts)
   }
 
 boxT :: Type -> Type
-boxT t = Type { _tyRep = BoxT t, _tyKnd = KTy }
+boxT t = Type { _tyRep = BoxT t, _tyKnd = KTy 1 }
 
 topT :: Kind -> Type
 topT k = Type {
@@ -93,7 +93,7 @@ topT k = Type {
   }
 
 botT :: Type
-botT = Type { _tyRep = BotT, _tyKnd = KTy }
+botT = Type { _tyRep = BotT, _tyKnd = KTy 0}
 
 varT :: S.Name -> Kind -> Type
 varT s = varT' (U.s2n s)
@@ -108,7 +108,7 @@ funT' :: [(TyName, TyBind)] -> ArrowType -> Type
 funT' bound arr = let
   in Type {
     _tyRep = FunT (U.bind bound arr)
-    , _tyKnd = KTy
+    , _tyKnd = KTy 1
     }
 
 funT :: [(S.Name, TyBind)] -> [Type] -> Type -> Type

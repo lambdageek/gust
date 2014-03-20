@@ -59,6 +59,7 @@ instance Ord Var where
 -- | syntactic types
 data SType' a =
   AppST     !Name ![SType a]
+  | TopST   !Nat
   | BoxST   !(SType a)
   | TupleST ![SType a]
   | FunST   ![TypeBinding] ![SType a] !(SType a)

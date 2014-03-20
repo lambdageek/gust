@@ -1,1 +1,8 @@
+abstype Int : T
+abstype Gate : T 4
+
+extern var k : forall a : T 5 . (a) -> ()
+
+fun z (i : Int, g : Gate) : () = k ((i,g))
+
 fun w<a, b> (z : (a, b)) : a = prj 0 z

@@ -18,9 +18,9 @@ import qualified Unbound.LocallyNameless as U
 
 import Data.Order
 
-data Kind = KTy
 type Nat = Int
 
+data Kind = KTy !Nat
           deriving (Eq, Ord, Show, Data, Typeable)
 
 -- | AbsTB ks k is an abstract type constructor binding of arity |ks|
@@ -35,6 +35,13 @@ instance U.Alpha Kind
 instance U.Alpha TyBind
 
 instance Preorder Kind where
-  KTy <=: _       = True
-  KTy /\? _       = Just KTy
-  KTy \/? _       = Just KTy
+  KTy n <=: KTy m        = n == m
+  KTy n /\? KTy m | n == m    = Just (KTy n)
+                  | otherwise = Nothing
+  
+  KTy n \/? KTy m | n == m    = Just (KTy n)
+                  | otherwise = Nothing
+
+
+kSize :: Kind -> Nat
+kSize (KTy n) = n

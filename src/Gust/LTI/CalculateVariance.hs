@@ -88,8 +88,8 @@ varianceOf' varVariance posVarianceOf negVarianceOf v t =
   
 test_variance1 :: [Variance]
 test_variance1 = let
-  x = varT "x" KTy
-  y = varT "y" KTy
+  x = varT "x" (KTy 1)
+  y = varT "y" (KTy 2)
 
   t ~~> t' = funT [] [t] t'
 

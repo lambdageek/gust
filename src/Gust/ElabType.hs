@@ -50,6 +50,8 @@ elabTy = elab $ \t -> case t of
   S.TupleST ts -> do
     ts' <- traverse elabTy ts
     T.tupleT (ts' ^..folded.ty) -:- S.TupleST ts'
+  S.TopST n -> do
+    T.topT (KTy n)              -:- S.TopST n
   S.BoxST t1 -> do
     t1' <- elabTy t1
     T.boxT (t1'^.ty)            -:- S.BoxST t1'
