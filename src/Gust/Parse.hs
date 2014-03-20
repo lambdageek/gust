@@ -14,7 +14,7 @@ import Gust.Located
 type Parser = Parsec String ()
 
 parseProgram :: Parser (Program (Located ()))
-parseProgram = many1 parser <* eof
+parseProgram = whiteSpace *> many1 parser <* eof
 
 class SourceCode t where
   parser :: Parser (Meta t (Located ()))
@@ -233,6 +233,9 @@ identifier = Tok.identifier tok
 
 commaSep :: Parser a -> Parser [a]
 commaSep = Tok.commaSep tok
+
+whiteSpace :: Parser ()
+whiteSpace = Tok.whiteSpace tok
 
 test :: String -> IO ()
 test = parseTest (parser <* eof :: Parser (Decl (Located ())))
